@@ -136,8 +136,10 @@ func readAll(ctx context.Context, rc io.ReadCloser, idle time.Duration, h Handle
 	}
 }
 
-// MQTT subscribes to a topic whose payload is a raw DSMR telegram, as published by e.g.
-// DSMR-reader, ser2mqtt or an ESPHome/Tasmota P1 bridge configured for raw telegrams.
+// MQTT subscribes to a topic whose payload is either a raw DSMR telegram (DSMR-reader, ser2mqtt,
+// ESPHome/Tasmota raw mode) or a JSON object in HomeWizard v1 field names (e.g. from an openHAB
+// rule). Retained messages are ignored: the broker replays them on every (re)subscribe, so they
+// would pass an old reading off as fresh.
 type MQTT struct {
 	Broker   string // tcp://host:1883, ssl://host:8883, ws://...
 	Topic    string
@@ -157,7 +159,13 @@ func (m MQTT) Run(ctx context.Context, log *slog.Logger, h Handler) error {
 		SetConnectRetryInterval(5 * time.Second).
 		SetMaxReconnectInterval(30 * time.Second).
 		SetOrderMatters(false)
-	onMsg := func(_ mqtt.Client, msg mqtt.Message) { h(string(msg.Payload())) }
+	onMsg := func(_ mqtt.Client, msg mqtt.Message) {
+		if msg.Retained() {
+			log.Debug("ignoring retained mqtt message", "topic", msg.Topic())
+			return
+		}
+		h(string(msg.Payload()))
+	}
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
 		log.Info("mqtt connected", "broker", m.Broker, "topic", m.Topic)
 		// Resubscribe on every (re)connect; clean sessions drop subscriptions.

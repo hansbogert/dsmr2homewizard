@@ -10,7 +10,7 @@ Inputs:
 |-----------|------------------------------------------------------------------------|
 | `serial`  | P1 cable on a serial port (default `/dev/ttyUSB0`, 115200 8N1)         |
 | `tcp`     | raw P1 byte stream over TCP (ser2net, P1-to-Wi-Fi dongles in raw mode) |
-| `mqtt`    | MQTT topic whose payload is one raw telegram                           |
+| `mqtt`    | MQTT topic: one raw telegram, or a JSON snapshot (below) per message   |
 | `stdin`   | telegrams on standard input (testing)                                  |
 
 Every telegram's CRC is checked (DSMR 4+); bad telegrams are dropped and logged. MQTT payloads
@@ -34,6 +34,25 @@ Checked before writing this (2026-11):
 (polls HA sensors, v1 `/api/v1/data` only), and
 [jeroen-klaver/Homewizard-emulator](https://github.com/jeroen-klaver/Homewizard-emulator)
 (random data). None reads DSMR directly from serial or MQTT, or runs without Home Assistant.
+
+## JSON snapshots (openHAB and other parsed sources)
+
+Some publishers have only parsed values, for example openHAB's DSMR binding, which never exposes
+the raw telegram. They can publish one JSON object per reading instead, using the HomeWizard v1
+field names from `/api/v1/data`. Power and current are signed, negative when exporting:
+
+```json
+{"active_power_w": -412, "active_power_l1_w": -412, "active_current_l1_a": 1.8,
+ "active_voltage_l1_v": 229.4, "total_power_import_t1_kwh": 1234.5, "active_tariff": 1}
+```
+
+- `active_power_w` is required. Every other field is optional.
+- Unknown fields are rejected, so a typo shows up in the log instead of as a missing value.
+- `/api/v1/telegram` and `/api/telegram` answer 404 for this input.
+- Retained MQTT messages are ignored for both formats.
+
+`contrib/openhab/p1-to-mqtt.js` is a JS Scripting rule that publishes this snapshot on every
+DSMR update. Adjust its broker Thing UID, topic and item names.
 
 ## Fail-safe on stale data
 

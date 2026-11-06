@@ -92,11 +92,14 @@ func (d *Device) V1Handler() http.Handler {
 	}))
 	mux.HandleFunc("GET /api/v1/telegram", enabled(func(w http.ResponseWriter, r *http.Request) {
 		t := d.Latest.Get()
-		if t == nil {
+		switch {
+		case t == nil:
 			v1Error(w, 503, 503, "no recent P1 telegram")
-			return
+		case t.Raw == "":
+			v1Error(w, 404, 404, "input carries no raw telegram")
+		default:
+			writeTelegram(w, t.Raw)
 		}
-		writeTelegram(w, t.Raw)
 	}))
 	mux.HandleFunc("GET /api/v1/system", enabled(func(w http.ResponseWriter, r *http.Request) {
 		cloud, _ := d.State.settings()
@@ -192,11 +195,14 @@ func (d *Device) V2Handler() http.Handler {
 	}))
 	mux.HandleFunc("GET /api/telegram", d.auth(func(w http.ResponseWriter, r *http.Request) {
 		t := d.Latest.Get()
-		if t == nil {
+		switch {
+		case t == nil:
 			v2Error(w, 503, "measurement:unavailable")
-			return
+		case t.Raw == "":
+			v2Error(w, 404, "telegram:unavailable")
+		default:
+			writeTelegram(w, t.Raw)
 		}
-		writeTelegram(w, t.Raw)
 	}))
 	mux.HandleFunc("GET /api/system", d.auth(d.v2System))
 	mux.HandleFunc("PUT /api/system", d.auth(func(w http.ResponseWriter, r *http.Request) {

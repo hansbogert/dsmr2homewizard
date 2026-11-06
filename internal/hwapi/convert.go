@@ -173,7 +173,9 @@ func (f fields) putPhases(prefix, suffix string, vals any) {
 func (m measurement) v1(wifiSSID string) fields {
 	f := fields{"wifi_ssid": wifiSSID, "wifi_strength": 100}
 	f.put("unique_id", m.uniqueID)
-	f.put("smr_version", m.version)
+	if m.version > 0 {
+		f.put("smr_version", m.version)
+	}
 	f.put("meter_model", m.meterModel)
 	if m.tariff > 0 {
 		f.put("active_tariff", m.tariff)
@@ -219,7 +221,9 @@ func (m measurement) v1(wifiSSID string) fields {
 
 func (m measurement) v2() fields {
 	f := fields{}
-	f.put("protocol_version", m.version)
+	if m.version > 0 {
+		f.put("protocol_version", m.version)
+	}
 	f.put("meter_model", m.meterModel)
 	f.put("unique_id", m.uniqueID)
 	f.put("timestamp", v2Timestamp(m.timestamp))

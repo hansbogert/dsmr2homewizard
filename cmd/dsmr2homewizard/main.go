@@ -43,7 +43,7 @@ func main() {
 		parity     = flag.String("serial-parity", env("serial-parity", "none"), "parity: none, even, odd (DSMR 2.2/3: even)")
 		tcpAddr    = flag.String("tcp-addr", env("tcp-addr", ""), "host:port of a raw P1 TCP stream (ser2net)")
 		mqttBroker = flag.String("mqtt-broker", env("mqtt-broker", "tcp://localhost:1883"), "MQTT broker URL")
-		mqttTopic  = flag.String("mqtt-topic", env("mqtt-topic", "dsmr/telegram"), "MQTT topic carrying raw telegrams")
+		mqttTopic  = flag.String("mqtt-topic", env("mqtt-topic", "dsmr/telegram"), "MQTT topic carrying raw telegrams or HomeWizard v1 JSON snapshots")
 		mqttUser   = flag.String("mqtt-username", env("mqtt-username", ""), "MQTT username")
 		mqttPass   = flag.String("mqtt-password", env("mqtt-password", ""), "MQTT password")
 		mqttClient = flag.String("mqtt-client-id", env("mqtt-client-id", "dsmr2homewizard"), "MQTT client ID")
@@ -210,13 +210,20 @@ func run(log *slog.Logger, c config) error {
 	var bad, good atomic.Int64
 	go func() {
 		errc <- in.Run(ctx, log, func(raw string) {
-			t, err := dsmr.Parse(raw)
+			var t *dsmr.Telegram
+			var err error
+			if strings.HasPrefix(strings.TrimSpace(raw), "{") {
+				t, err = hwapi.ParseV1JSON([]byte(raw))
+			} else {
+				t, err = dsmr.Parse(raw)
+			}
 			if err != nil {
 				log.Warn("dropping telegram", "err", err, "dropped_total", bad.Add(1))
 				return
 			}
 			if good.Add(1) == 1 {
-				log.Info("first telegram received", "meter", t.Header, "dsmr", t.Version)
+				log.Info("first reading received", "meter", t.Header, "dsmr", t.Version,
+					"raw_telegram", t.Raw != "")
 			}
 			latest.Set(t)
 		})
