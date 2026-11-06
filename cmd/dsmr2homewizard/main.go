@@ -53,7 +53,7 @@ func main() {
 		stateDir   = flag.String("state-dir", env("state-dir", "/var/lib/dsmr2homewizard"), "directory for serial, v2 tokens and TLS cert")
 		serialNo   = flag.String("serial-number", env("serial-number", ""), "12-hex-digit device serial (default: generated once, then persisted)")
 		wifiSSID   = flag.String("wifi-ssid", env("wifi-ssid", "dsmr2homewizard"), "Wi-Fi SSID to report")
-		maxAge     = flag.Duration("max-age", dur(env("max-age", "30s")), "serve 503 when the newest telegram is older than this; 0 disables")
+		maxAge     = flag.Duration("max-age", dur(env("max-age", "15s")), "serve 503 when the newest telegram is older than this; 0 disables")
 		pairWindow = flag.Duration("pairing-window", dur(env("pairing-window", "5m")), "accept v2 pairing this long after start and after SIGUSR1")
 		noMDNS     = flag.Bool("no-mdns", env("no-mdns", "") != "", "do not advertise over mDNS")
 		mdnsIface  = flag.String("mdns-interface", env("mdns-interface", ""), "advertise only on this interface")

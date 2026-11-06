@@ -37,7 +37,7 @@ Checked before writing this (2026-11):
 
 ## Fail-safe on stale data
 
-If no valid telegram arrived within `-max-age` (default 30s), the data, measurement and
+If no valid telegram arrived within `-max-age` (default 15s), the data, measurement and
 telegram endpoints answer **503** instead of the last value. A battery steering on grid power
 should see an outage, not a frozen reading. `-max-age 0` disables this.
 
