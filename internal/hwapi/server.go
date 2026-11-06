@@ -257,7 +257,27 @@ func (d *Device) auth(h http.HandlerFunc) http.HandlerFunc {
 
 func logRequests(log *slog.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("request", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
-		h.ServeHTTP(w, r)
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: 200}
+		h.ServeHTTP(rec, r)
+		log.Debug("request", "method", r.Method, "uri", r.RequestURI, "remote", r.RemoteAddr,
+			"status", rec.status, "bytes", rec.bytes, "dur", time.Since(start),
+			"user_agent", r.UserAgent(), "proto", r.Proto)
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status, bytes int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	n, err := s.ResponseWriter.Write(b)
+	s.bytes += n
+	return n, err
 }
