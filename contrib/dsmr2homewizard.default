@@ -1,0 +1,7 @@
+# Copy to /etc/default/dsmr2homewizard. Any flag works as DSMR2HW_<FLAG>; see dsmr2homewizard -h.
+DSMR2HW_INPUT=serial
+DSMR2HW_SERIAL_DEVICE=/dev/ttyUSB0
+#DSMR2HW_INPUT=mqtt
+#DSMR2HW_MQTT_BROKER=tcp://localhost:1883
+#DSMR2HW_MQTT_TOPIC=dsmr/telegram
+#DSMR2HW_MDNS_INTERFACE=eth0
