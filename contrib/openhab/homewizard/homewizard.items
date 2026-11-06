@@ -1,0 +1,9 @@
+// Raw HomeWizard channels. homewizard-split.rules copies them into the MainElectricityMeter_*
+// and M3Meter_Delivery items, which keep their names for the main openHAB (remoteopenhab).
+Number:Power  HW_Power      "HW net power [%d W]"       { channel="homewizard:p1_wifi_meter:p1:active_power" }
+Number:Power  HW_Power_L1   "HW net power L1 [%d W]"    { channel="homewizard:p1_wifi_meter:p1:active_power_l1" }
+Number:Energy HW_Import_T1  "HW import T1 [%.3f kWh]"   { channel="homewizard:p1_wifi_meter:p1:total_energy_import_t1" }
+Number:Energy HW_Import_T2  "HW import T2 [%.3f kWh]"   { channel="homewizard:p1_wifi_meter:p1:total_energy_import_t2" }
+Number:Energy HW_Export_T1  "HW export T1 [%.3f kWh]"   { channel="homewizard:p1_wifi_meter:p1:total_energy_export_t1" }
+Number:Energy HW_Export_T2  "HW export T2 [%.3f kWh]"   { channel="homewizard:p1_wifi_meter:p1:total_energy_export_t2" }
+Number:Volume HW_Gas        "HW gas [%.3f m³]"          { channel="homewizard:p1_wifi_meter:p1:total_gas" }

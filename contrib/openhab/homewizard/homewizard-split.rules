@@ -1,0 +1,37 @@
+// HomeWizard reports signed net power (negative = export); the DSMR items it replaces had
+// separate delivery and production values, both positive.
+
+rule "HomeWizard power -> delivery/production"
+when
+    Item HW_Power changed
+then
+    if (!(HW_Power.state instanceof QuantityType)) return;
+    val p = (HW_Power.state as QuantityType<Power>).toUnit("W").doubleValue
+    MainElectricityMeter_ActualPowerDelivery.postUpdate((if (p > 0) p else 0.0) + " W")
+    MainElectricityMeter_ActualPowerProduction.postUpdate((if (p < 0) -p else 0.0) + " W")
+end
+
+rule "HomeWizard power L1 -> delivery/production L1"
+when
+    Item HW_Power_L1 changed
+then
+    if (!(HW_Power_L1.state instanceof QuantityType)) return;
+    val p = (HW_Power_L1.state as QuantityType<Power>).toUnit("W").doubleValue
+    MainElectricityMeter_InstantPowerDeliveryL1.postUpdate((if (p > 0) p else 0.0) + " W")
+    MainElectricityMeter_InstantPowerProductionL1.postUpdate((if (p < 0) -p else 0.0) + " W")
+end
+
+rule "HomeWizard counters -> meter items"
+when
+    Item HW_Import_T1 changed or
+    Item HW_Import_T2 changed or
+    Item HW_Export_T1 changed or
+    Item HW_Export_T2 changed or
+    Item HW_Gas changed
+then
+    if (HW_Import_T1.state instanceof QuantityType) MainElectricityMeter_DeliveryTariff1.postUpdate(HW_Import_T1.state)
+    if (HW_Import_T2.state instanceof QuantityType) MainElectricityMeter_DeliveryTariff2.postUpdate(HW_Import_T2.state)
+    if (HW_Export_T1.state instanceof QuantityType) MainElectricityMeter_ProductionTariff1.postUpdate(HW_Export_T1.state)
+    if (HW_Export_T2.state instanceof QuantityType) MainElectricityMeter_ProductionTariff2.postUpdate(HW_Export_T2.state)
+    if (HW_Gas.state instanceof QuantityType) M3Meter_Delivery.postUpdate(HW_Gas.state)
+end

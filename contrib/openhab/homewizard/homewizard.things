@@ -1,0 +1,3 @@
+// dsmr2homewizard on this host (the container uses host networking). It owns the P1 serial
+// port; the DSMR binding is removed so the two never compete for /dev/ttyUSB0.
+Thing homewizard:p1_wifi_meter:p1 "HomeWizard P1 (dsmr2homewizard)" [ ipAddress="127.0.0.1", refreshDelay=1 ]
