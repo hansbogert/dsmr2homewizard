@@ -13,10 +13,10 @@ import (
 
 const (
 	productType = "HWE-P1"
-	productName = "P1 Meter"
-	firmwareV1  = "5.18"
-	firmwareV2  = "6.0200"
-	apiV2       = "2.0.0"
+	productName = "P1 meter"
+	// One firmware for both APIs: real meters offer v2 from firmware 6.00 on.
+	firmware = "6.0200"
+	apiV2    = "2.0.0"
 )
 
 // Device is one emulated P1 meter, shared by the v1 and v2 servers.
@@ -63,12 +63,16 @@ func v1Error(w http.ResponseWriter, code, id int, desc string) {
 // consumer steering a battery sees an outage rather than a frozen or zero reading.
 func (d *Device) V1Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api", func(w http.ResponseWriter, r *http.Request) {
+	info := func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{
 			"product_type": productType, "product_name": productName,
-			"serial": d.State.Serial(), "firmware_version": firmwareV1, "api_version": "v1",
+			"serial": d.State.Serial(), "firmware_version": firmware, "api_version": "v1",
 		})
-	})
+	}
+	// openHAB asks for "/api/". {$} matches only that path, so unknown paths still 404, which
+	// Home Assistant relies on (it probes /api/v1/state and expects 404).
+	mux.HandleFunc("GET /api", info)
+	mux.HandleFunc("GET /api/{$}", info)
 	enabled := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if _, v1 := d.State.settings(); !v1 {
@@ -128,12 +132,17 @@ func v2Error(w http.ResponseWriter, code int, id string) {
 
 func (d *Device) V2Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api", func(w http.ResponseWriter, r *http.Request) {
+	// A real meter answers 401 here without a token. Home Assistant probes for exactly that 401
+	// to choose v2, and then fails, because it trusts only HomeWizard's CA. Answering 200 keeps
+	// HA on v1, which works.
+	info := func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{
 			"product_name": productName, "product_type": productType,
-			"serial": d.State.Serial(), "firmware_version": firmwareV2, "api_version": apiV2,
+			"serial": d.State.Serial(), "firmware_version": firmware, "api_version": apiV2,
 		})
-	})
+	}
+	mux.HandleFunc("GET /api", info)
+	mux.HandleFunc("GET /api/{$}", info)
 	mux.HandleFunc("POST /api/user", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
@@ -205,9 +214,17 @@ func (d *Device) V2Handler() http.Handler {
 		}
 		d.v2System(w, r)
 	}))
-	mux.HandleFunc("PUT /api/identify", d.auth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /api/system/identify", d.auth(func(w http.ResponseWriter, r *http.Request) {
 		d.Log.Info("identify requested", "remote", r.RemoteAddr)
 		w.WriteHeader(204)
+	}))
+	// No plug-in batteries behind this meter. Homey's v2 poll fails as a whole without this
+	// endpoint; Home Assistant's library accepts this shape.
+	mux.HandleFunc("GET /api/batteries", d.auth(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{
+			"mode": "zero", "permissions": []string{}, "battery_count": 0, "power_w": 0,
+			"target_power_w": 0, "max_consumption_w": 0, "max_production_w": 0,
+		})
 	}))
 	return logRequests(d.Log, mux)
 }

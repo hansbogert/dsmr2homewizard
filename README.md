@@ -74,14 +74,32 @@ A real meter accepts `POST /api/user` only after its button is pressed. Here, pa
 
 v2 uses a **self-signed** certificate, generated once into the state directory. Real meters
 present a certificate from HomeWizard's private CA, so clients that validate against that CA
-(the official HomeWizard app, strict libraries) will reject the emulator over v2 and must use
-v1. The v2 WebSocket (`/api/ws`) and battery-control endpoints are not implemented.
+(the official HomeWizard app, Home Assistant, openHAB, ioBroker) reject the emulator over v2
+and must use v1. `/api/batteries` reports no batteries; the v2 WebSocket (`/api/ws`) and battery
+control are not implemented.
 
 ## Identity
 
-The 12-hex-digit serial (also the "MAC" clients see) is generated once and stored in
-`state.json`. Set `-serial-number` to pin it, e.g. when replacing a real meter whose serial a
-consumer is already paired with.
+A HomeWizard serial is the device's MAC. On first start the serial is the MAC of the interface
+carrying the default route (or `-mdns-interface`), and is then kept in `state.json`. Home
+Assistant uses it to follow the meter across DHCP address changes. Set `-serial-number` to pin
+it, e.g. when replacing a real meter whose serial a consumer is already paired with.
+
+mDNS advertises only that interface's addresses, under host name `p1meter-<last 6 of serial>`.
+
+## Client compatibility
+
+Checked against client source code (2026-11):
+
+| Client | API | Notes |
+|---|---|---|
+| Home Assistant (`homewizard`) | v1 | v2 impossible: CA pinned. It picks v2 only if HTTPS `GET /api` answers 401, so the emulator answers 200 there. It probes `/api/v1/state` and needs a 404. Gas comes only from `external`. |
+| evcc | v1 | Requires `api_version: "v1"`. Energy is the sum of the `t1..t4` registers. |
+| SmartEVSE | v1 | Finds the meter by mDNS host name prefix `p1meter-`. Reads `active_current_a` on single-phase meters. Stops charging after 11s without data. |
+| openHAB | v1 | Requests `/api/` (trailing slash) and `/api/v1/system` on every poll. Any non-200 means offline. v2 impossible: CA pinned. |
+| Homey | v1, v2 | v2 polls `/api/batteries` together with the measurement. Homey accepts any certificate. |
+| Victron (dbus drivers) | v1 | `back2basic` publishes **0 W** when it gets an error such as the stale-data 503. Its 3-phase mode expects every L1–L3 field to be present. |
+| Zendure, Marstek | ? | Closed firmware. Zendure reportedly uses v1 on port 80. |
 
 ## Field mapping notes
 

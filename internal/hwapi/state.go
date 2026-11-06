@@ -54,9 +54,9 @@ type State struct {
 	p    persisted
 }
 
-// LoadState reads dir/state.json, creating it with a fresh serial when absent. A non-empty
-// serial overrides the stored one.
-func LoadState(dir, serial string) (*State, error) {
+// LoadState reads dir/state.json, creating it when absent. A non-empty serial overrides the
+// stored one; a new state file takes fallback, or a random serial when fallback is empty.
+func LoadState(dir, serial, fallback string) (*State, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -77,6 +77,9 @@ func LoadState(dir, serial string) (*State, error) {
 	}
 	if serial != "" {
 		s.p.Serial = strings.ToLower(serial)
+	}
+	if s.p.Serial == "" {
+		s.p.Serial = strings.ToLower(fallback)
 	}
 	if s.p.Serial == "" {
 		// 3c39e7 is the prefix of HomeWizard's own example serials.

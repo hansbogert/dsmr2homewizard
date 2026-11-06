@@ -51,12 +51,12 @@ func main() {
 		v1Listen   = flag.String("v1-listen", env("v1-listen", ":80"), "API v1 HTTP listen address; empty disables")
 		v2Listen   = flag.String("v2-listen", env("v2-listen", ":443"), "API v2 HTTPS listen address; empty disables")
 		stateDir   = flag.String("state-dir", env("state-dir", "/var/lib/dsmr2homewizard"), "directory for serial, v2 tokens and TLS cert")
-		serialNo   = flag.String("serial-number", env("serial-number", ""), "12-hex-digit device serial (default: generated once, then persisted)")
+		serialNo   = flag.String("serial-number", env("serial-number", ""), "12-hex-digit device serial (default: this host's MAC on first start, then persisted)")
 		wifiSSID   = flag.String("wifi-ssid", env("wifi-ssid", "dsmr2homewizard"), "Wi-Fi SSID to report")
 		maxAge     = flag.Duration("max-age", dur(env("max-age", "15s")), "serve 503 when the newest telegram is older than this; 0 disables")
 		pairWindow = flag.Duration("pairing-window", dur(env("pairing-window", "5m")), "accept v2 pairing this long after start and after SIGUSR1")
 		noMDNS     = flag.Bool("no-mdns", env("no-mdns", "") != "", "do not advertise over mDNS")
-		mdnsIface  = flag.String("mdns-interface", env("mdns-interface", ""), "advertise only on this interface")
+		mdnsIface  = flag.String("mdns-interface", env("mdns-interface", ""), "interface to advertise on and take the default serial (MAC) from (default: the one with the default route)")
 		debug      = flag.Bool("debug", env("debug", "") != "", "debug logging")
 	)
 	flag.Parse()
@@ -133,7 +133,17 @@ func run(log *slog.Logger, c config) error {
 		return fmt.Errorf("unknown input %q", c.input)
 	}
 
-	state, err := hwapi.LoadState(c.stateDir, c.serialNo)
+	var ifaces []net.Interface
+	if c.mdnsIface != "" {
+		ifc, err := net.InterfaceByName(c.mdnsIface)
+		if err != nil {
+			return fmt.Errorf("mdns interface: %w", err)
+		}
+		ifaces = []net.Interface{*ifc}
+	} else if ifc := mdns.DefaultInterface(); ifc != nil {
+		ifaces = []net.Interface{*ifc}
+	}
+	state, err := hwapi.LoadState(c.stateDir, c.serialNo, mdns.MAC(ifaces))
 	if err != nil {
 		return fmt.Errorf("state: %w", err)
 	}
@@ -190,14 +200,6 @@ func run(log *slog.Logger, c config) error {
 	}
 
 	if c.mdns {
-		var ifaces []net.Interface
-		if c.mdnsIface != "" {
-			ifc, err := net.InterfaceByName(c.mdnsIface)
-			if err != nil {
-				return fmt.Errorf("mdns interface: %w", err)
-			}
-			ifaces = []net.Interface{*ifc}
-		}
 		stop, err := mdns.Advertise(serial, v1Port, v2Port, ifaces)
 		if err != nil {
 			return fmt.Errorf("mdns: %w", err)

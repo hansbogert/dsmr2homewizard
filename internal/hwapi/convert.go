@@ -185,6 +185,8 @@ func (m measurement) v1(wifiSSID string) fields {
 	f.put("active_power_w", m.power)
 	f.putPhases("active_power_l", "_w", m.phasePower)
 	f.putPhases("active_voltage_l", "_v", m.voltage)
+	// SmartEVSE reads the aggregate on single-phase meters and sees 0 A without it.
+	f.put("active_current_a", m.currentSum())
 	f.putPhases("active_current_l", "_a", m.current)
 	f.put("active_frequency_hz", m.frequency)
 	f.putPhases("voltage_sag_l", "_count", m.sag)
@@ -231,17 +233,7 @@ func (m measurement) v2() fields {
 	f.put("power_w", m.power)
 	f.putPhases("power_l", "_w", m.phasePower)
 	f.putPhases("voltage_l", "_v", m.voltage)
-	var sum float64
-	found := false
-	for _, c := range m.current {
-		if c != nil {
-			sum += math.Abs(*c)
-			found = true
-		}
-	}
-	if found {
-		f.put("current_a", sum)
-	}
+	f.put("current_a", m.currentSum())
 	f.putPhases("current_l", "_a", m.current)
 	f.put("frequency_hz", m.frequency)
 	f.putPhases("voltage_sag_l", "_count", m.sag)
@@ -266,4 +258,20 @@ func (m measurement) v2() fields {
 		f["external"] = ext
 	}
 	return f
+}
+
+// currentSum is the sum of absolute phase currents, nil when the meter sent none.
+func (m measurement) currentSum() *float64 {
+	var sum float64
+	found := false
+	for _, c := range m.current {
+		if c != nil {
+			sum += math.Abs(*c)
+			found = true
+		}
+	}
+	if !found {
+		return nil
+	}
+	return &sum
 }

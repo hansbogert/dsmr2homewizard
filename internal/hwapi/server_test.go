@@ -40,7 +40,7 @@ const body = "/ISK5\\2M550T-1012\r\n\r\n" +
 
 func newDevice(t *testing.T) (*Device, *Latest) {
 	t.Helper()
-	st, err := LoadState(t.TempDir(), "3c39e7aabbcc")
+	st, err := LoadState(t.TempDir(), "3c39e7aabbcc", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,5 +144,36 @@ func TestV2PairingAndMeasurement(t *testing.T) {
 	}
 	if code, _ := do(t, h, "GET", "/api/measurement", tok, ""); code != 401 {
 		t.Errorf("deleted token still works: %d", code)
+	}
+}
+
+func TestClientQuirks(t *testing.T) {
+	d, _ := newDevice(t)
+	v1 := d.V1Handler()
+	if code, m := do(t, v1, "GET", "/api/", "", ""); code != 200 || m["product_type"] != "HWE-P1" {
+		t.Errorf("openHAB /api/: %d %v", code, m)
+	}
+	if code, _ := do(t, v1, "GET", "/api/v1/state", "", ""); code != 404 {
+		t.Errorf("HA probes /api/v1/state and needs 404, got %d", code)
+	}
+	if _, m := do(t, v1, "GET", "/api/v1/data", "", ""); m["active_current_a"] != 6.0 {
+		t.Errorf("active_current_a = %v, want 6", m["active_current_a"])
+	}
+
+	v2 := d.V2Handler()
+	d.OpenPairing(time.Minute)
+	_, m := do(t, v2, "POST", "/api/user", "", `{"name":"local/home-assistant#ab12cd"}`)
+	tok, _ := m["token"].(string)
+	if tok == "" {
+		t.Fatalf("pairing with '#' in name failed: %v", m)
+	}
+	if code, m := do(t, v2, "GET", "/api/batteries", tok, ""); code != 200 || m["mode"] != "zero" {
+		t.Errorf("batteries: %d %v", code, m)
+	}
+	if code, _ := do(t, v2, "PUT", "/api/system/identify", tok, ""); code != 204 {
+		t.Errorf("identify: %d", code)
+	}
+	if code, m := do(t, v2, "GET", "/api", "", ""); code != 200 || m["api_version"] != "2.0.0" {
+		t.Errorf("v2 /api must answer 200 unauthenticated (keeps HA on v1): %d %v", code, m)
 	}
 }
