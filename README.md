@@ -79,6 +79,20 @@ Every flag can also be set as an environment variable `DSMR2HW_<FLAG>` (e.g.
 `DSMR2HW_MQTT_BROKER`); see `-h`. Ports 80/443 are what consumers expect; most clients cannot be
 pointed elsewhere.
 
+### Docker Compose
+
+`contrib/docker-compose.yml` runs it with host networking (ports 80/443 and mDNS), the P1 cable
+by its stable `/dev/serial/by-id/…` name, and state in `./state`. Copy it next to the `Dockerfile`
+and the built binary, adjust the device path, then:
+
+```sh
+docker compose up -d --build
+docker compose logs -f
+```
+
+`restart: always` only covers a container that has been started once; a merely created one
+stays down, even across reboots.
+
 ### systemd
 
 `contrib/dsmr2homewizard.service` runs it unprivileged (`DynamicUser`, `CAP_NET_BIND_SERVICE`,

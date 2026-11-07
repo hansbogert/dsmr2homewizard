@@ -1,0 +1,16 @@
+# HomeWizard P1 meter emulator: reads the P1 cable, serves the HomeWizard API on :80/:443.
+# Start/update: docker compose up -d --build    Logs: docker compose logs -f
+services:
+  dsmr2homewizard:
+    build: .
+    image: dsmr2homewizard:local
+    container_name: dsmr2homewizard
+    restart: always
+    # Host networking: consumers expect ports 80/443, and mDNS discovery needs the LAN.
+    network_mode: host
+    devices:
+      # Your P1 cable by its stable name (ls /dev/serial/by-id/); /dev/ttyUSB0 inside the container.
+      - /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_<serial>-if00-port0:/dev/ttyUSB0
+    volumes:
+      - ./state:/state
+    command: ["-input", "serial", "-serial-device", "/dev/ttyUSB0", "-state-dir", "/state"]
