@@ -87,8 +87,18 @@ to CT003. It behaves like the real CT003 (firmware v122), not like a controller:
 - Batteries reach the CT on the LAN, possibly by broadcast, so use host networking in Docker. Single-phase
   meters report L2 and L3 as 0.
 
-Not implemented: the CT003's MQTT/cloud reporting to the Marstek app and its BLE side, so the
-app will not show this meter.
+A battery only follows a CT that is in your Marstek account and selected in its settings. The
+app adds a real CT003 over Bluetooth, which this does not implement. Instead,
+`contrib/marstek-register-ct003.py` adds it through the same cloud calls the app makes:
+
+```sh
+contrib/marstek-register-ct003.py list               # log in, show your devices; changes nothing
+contrib/marstek-register-ct003.py add a2ffbe89921e   # the ct_mac dsmr2homewizard logs at start
+```
+
+Then select it in the battery's settings (automatic mode). The app shows it as offline, since it
+never connects to Marstek's cloud; the battery talks to it over the LAN only. Its MQTT reporting
+and Bluetooth side are not implemented.
 
 ## Build and run
 
