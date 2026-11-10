@@ -6,7 +6,8 @@ services:
     image: dsmr2homewizard:local
     container_name: dsmr2homewizard
     restart: always
-    # Host networking: consumers expect ports 80/443, and mDNS discovery needs the LAN.
+    # Host networking: consumers expect ports 80/443, and mDNS discovery and the CT003
+    # output (UDP broadcast on 12345) need the LAN.
     network_mode: host
     devices:
       # Your P1 cable by its stable name (ls /dev/serial/by-id/); /dev/ttyUSB0 inside the container.
