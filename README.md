@@ -24,6 +24,7 @@ Outputs:
   `GET /api/telegram`, `GET|PUT /api/system`, `PUT /api/identify`.
 - **mDNS**: `_hwenergy._tcp` (v1) and `_homewizard._tcp` (v2), with the TXT records of a real
   meter, as `p1meter-XXXXXX`.
+- **Marstek CT003** on UDP `:12345`, opt-in with `-ct003-listen :12345`; see below.
 
 ## Prior art
 
@@ -34,6 +35,12 @@ Checked before writing this (2026-11):
 (polls HA sensors, v1 `/api/v1/data` only), and
 [jeroen-klaver/Homewizard-emulator](https://github.com/jeroen-klaver/Homewizard-emulator)
 (random data). None reads DSMR directly from serial or MQTT, or runs without Home Assistant.
+
+For the CT003 output:
+[tomquist/AstraMeter](https://github.com/tomquist/AstraMeter) (Python, GPL-3.0) emulates a
+CT002/CT003 from many sources but has no DSMR reader, and does not send the CT003's energy
+counters. Its [protocol notes](https://github.com/tomquist/AstraMeter/blob/main/docs/ct002-ct003-protocol.md)
+are what this implementation follows; no code is taken from it.
 
 ## JSON snapshots (openHAB and other parsed sources)
 
@@ -58,7 +65,30 @@ DSMR update. Adjust its broker Thing UID, topic and item names.
 
 If no valid telegram arrived within `-max-age` (default 15s), the data, measurement and
 telegram endpoints answer **503** instead of the last value. A battery steering on grid power
-should see an outage, not a frozen reading. `-max-age 0` disables this.
+should see an outage, not a frozen reading. `-max-age 0` disables this. The CT003 output does
+not answer at all then, which is what a battery sees when its CT drops off the network.
+
+## Marstek CT003
+
+With `-ct003-listen :12345` the program also answers like a Marstek **CT003** (`HME-3`), the P1
+meter Marstek batteries (Venus, B2500, Jupiter) read the grid from. Set the battery's meter type
+to CT003. It behaves like the real CT003 (firmware v122), not like a controller:
+
+- Each battery polls over UDP and gets its own reply with the per-phase and total grid power,
+  how many batteries sit on each phase, the charge/discharge power the batteries reported per
+  phase, and the energy registers `1-0:1.8.1`, `1.8.2`, `2.8.1`, `2.8.2` (0.1 Wh). The batteries
+  divide the load among themselves, as with the real meter.
+- It answers requests for CT MAC `000000000000` (an unbound battery, which then binds to this
+  one) or for its own MAC, `-ct003-mac`, by default the serial number. The battery compares the
+  MAC byte for byte. To replace a real CT003 without re-pairing, set `-ct003-mac` to its MAC in
+  exactly the form the battery uses.
+- At most 9 batteries; one that stops polling is dropped after 30 to 60 s. Replies go out at
+  most about two per second in total, 500 ms apart, as the real CT003 paces them.
+- Batteries reach the CT on the LAN, possibly by broadcast, so use host networking in Docker. Single-phase
+  meters report L2 and L3 as 0.
+
+Not implemented: the CT003's MQTT/cloud reporting to the Marstek app and its BLE side, so the
+app will not show this meter.
 
 ## Build and run
 
