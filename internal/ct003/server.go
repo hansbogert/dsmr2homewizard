@@ -182,6 +182,7 @@ func (s *Server) replyLoop(ctx context.Context, conn net.PacketConn) {
 			if pkt == nil {
 				break
 			}
+			s.log.Debug("ct003: reply", "to", addr, "packet", string(pkt))
 			if _, err := conn.WriteTo(pkt, addr); err != nil && ctx.Err() == nil {
 				s.log.Warn("ct003: reply", "to", addr, "err", err)
 			}
@@ -217,17 +218,17 @@ func (s *Server) nextReply() ([]byte, net.Addr) {
 		}
 		sl.waiting = false
 		s.next = i + 1
-		s.idx++
-		return frame(s.replyBody(sl.req, readingOf(t), s.aggregate())), sl.addr
+		pkt := frame(s.replyBody(sl.req, readingOf(t), s.aggregate()))
+		s.idx++ // the first reply carries 0, as AstraMeter's does
+		return pkt, sl.addr
 	}
 	return nil, nil
 }
 
 // reading is what the CT003 measures.
 type reading struct {
-	phase  [3]int64  // W per phase, negative when exporting
-	total  int64     // W
-	energy [4]uint32 // 0.1 Wh: off-peak in, peak in, off-peak out, peak out
+	phase [3]int64 // W per phase, negative when exporting
+	total int64    // W
 }
 
 func readingOf(t *dsmr.Telegram) reading {
@@ -239,12 +240,6 @@ func readingOf(t *dsmr.Telegram) reading {
 		r.total = watts(t.PowerDelivered, t.PowerReturned)
 	} else {
 		r.total = r.phase[0] + r.phase[1] + r.phase[2]
-	}
-	// The CT003 reads 1-0:1.8.1/1.8.2 and 2.8.1/2.8.2 from its P1 port as kWh × 10000.
-	for i, kwh := range [4]*float64{t.Import[0], t.Import[1], t.Export[0], t.Export[1]} {
-		if kwh != nil {
-			r.energy[i] = uint32(clamp(int64(math.Round(*kwh*10000)), 0, math.MaxUint32))
-		}
 	}
 	return r
 }
@@ -306,7 +301,9 @@ func (s *Server) aggregate() aggregates {
 	return a
 }
 
-// replyBody lays out the 28 reply fields. s.mu must be held.
+// replyBody lays out the 24 reply fields AstraMeter sends. The CT003's four trailing energy
+// counters are left out: how the real CT fills them is untraced, and sending them coincided
+// with a Venus E 3.0 rebooting every 10–60 minutes. s.mu must be held.
 func (s *Server) replyBody(r request, m reading, a aggregates) string {
 	f := []string{Type, s.mac, r.devType, r.devMAC}
 	num := func(v int64) { f = append(f, strconv.FormatInt(v, 10)) }
@@ -324,9 +321,6 @@ func (s *Server) replyBody(r request, m reading, a aggregates) string {
 	}
 	for b := range buckets {
 		num(clamp(a.dischrg[b], math.MinInt16, math.MaxInt16))
-	}
-	for _, e := range m.energy {
-		num(int64(e))
 	}
 	return "|" + strings.Join(f, "|")
 }

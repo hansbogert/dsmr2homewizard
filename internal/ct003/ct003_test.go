@@ -164,10 +164,9 @@ func TestReply(t *testing.T) {
 	want := []string{"HME-3", ctMAC, "HMG-50", "aabbccddeeff",
 		"-676", "133", "20", "-543", // per-phase and total power
 		"1", "0", "0", "0", // batteries on A, B, C, combined
-		"-50", "1", // RSSI, info_idx
+		"-50", "0", // RSSI, info_idx
 		"0", "-300", "0", "0", "0", // charging: unassigned, A, B, C, combined
 		"0", "0", "0", "0", "0", // discharging
-		"108305110", "29488270", "15000", "0", // energy, 0.1 Wh
 	}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("reply\n got %v\nwant %v", got, want)
@@ -177,7 +176,7 @@ func TestReply(t *testing.T) {
 	bat2 := newBattery(t, addr)
 	got = bat2.poll("HMG-50", "112233445566", "HME-3", ctMAC, "B", "250")
 	if got == nil || got[3] != "112233445566" || got[8] != "1" || got[9] != "1" ||
-		got[13] != "2" || got[15] != "-300" || got[21] != "250" {
+		got[13] != "1" || got[15] != "-300" || got[21] != "250" {
 		t.Errorf("second battery: %v", got)
 	}
 }

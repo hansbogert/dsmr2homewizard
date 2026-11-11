@@ -38,9 +38,9 @@ Checked before writing this (2026-11):
 
 For the CT003 output:
 [tomquist/AstraMeter](https://github.com/tomquist/AstraMeter) (Python, GPL-3.0) emulates a
-CT002/CT003 from many sources but has no DSMR reader, and does not send the CT003's energy
-counters. Its [protocol notes](https://github.com/tomquist/AstraMeter/blob/main/docs/ct002-ct003-protocol.md)
-are what this implementation follows; no code is taken from it.
+CT002/CT003 from many sources but has no DSMR reader. Its [protocol notes](https://github.com/tomquist/AstraMeter/blob/main/docs/ct002-ct003-protocol.md)
+are what this implementation follows, and its reply is the same 24-field form; no code is taken
+from it.
 
 ## JSON snapshots (openHAB and other parsed sources)
 
@@ -75,9 +75,11 @@ meter Marstek batteries (Venus, B2500, Jupiter) read the grid from. Set the batt
 to CT003. It behaves like the real CT003 (firmware v122), not like a controller:
 
 - Each battery polls over UDP and gets its own reply with the per-phase and total grid power,
-  how many batteries sit on each phase, the charge/discharge power the batteries reported per
-  phase, and the energy registers `1-0:1.8.1`, `1.8.2`, `2.8.1`, `2.8.2` (0.1 Wh). The batteries
-  divide the load among themselves, as with the real meter.
+  how many batteries sit on each phase, and the charge/discharge power the batteries reported
+  per phase. The batteries divide the load among themselves, as with the real meter.
+- The reply leaves out the four energy counters a real CT003 appends, as AstraMeter does: how
+  the CT fills them is untraced, and while they were sent a Venus E 3.0 rebooted every 10–60
+  minutes. `-debug` logs every reply.
 - It answers requests for CT MAC `000000000000` (an unbound battery, which then binds to this
   one) or for its own MAC, `-ct003-mac`, by default the serial number. The battery compares the
   MAC byte for byte. To replace a real CT003 without re-pairing, set `-ct003-mac` to its MAC in
