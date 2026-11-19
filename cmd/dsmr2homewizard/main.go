@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hansbogert/dsmr2homewizard/internal/ct003"
 	"github.com/hansbogert/dsmr2homewizard/internal/dsmr"
 	"github.com/hansbogert/dsmr2homewizard/internal/hwapi"
 	"github.com/hansbogert/dsmr2homewizard/internal/mdns"
@@ -50,6 +51,8 @@ func main() {
 
 		v1Listen   = flag.String("v1-listen", env("v1-listen", ":80"), "API v1 HTTP listen address; empty disables")
 		v2Listen   = flag.String("v2-listen", env("v2-listen", ":443"), "API v2 HTTPS listen address; empty disables")
+		ctListen   = flag.String("ct003-listen", env("ct003-listen", ""), "Marstek CT003 UDP listen address, e.g. :12345; empty disables")
+		ctMAC      = flag.String("ct003-mac", env("ct003-mac", ""), "12-hex-digit CT003 MAC batteries bind to, case-sensitive (default: the serial number)")
 		stateDir   = flag.String("state-dir", env("state-dir", "/var/lib/dsmr2homewizard"), "directory for serial, v2 tokens and TLS cert")
 		serialNo   = flag.String("serial-number", env("serial-number", ""), "12-hex-digit device serial (default: this host's MAC on first start, then persisted)")
 		wifiSSID   = flag.String("wifi-ssid", env("wifi-ssid", "dsmr2homewizard"), "Wi-Fi SSID to report")
@@ -70,7 +73,7 @@ func main() {
 		input: *input, serialDev: *serialDev, baud: *baud, dataBits: *dataBits, parity: *parity,
 		tcpAddr: *tcpAddr, mqtt: source.MQTT{Broker: *mqttBroker, Topic: *mqttTopic,
 			ClientID: *mqttClient, Username: *mqttUser, Password: *mqttPass},
-		v1Listen: *v1Listen, v2Listen: *v2Listen, stateDir: *stateDir, serialNo: *serialNo,
+		v1Listen: *v1Listen, v2Listen: *v2Listen, ctListen: *ctListen, ctMAC: *ctMAC, stateDir: *stateDir, serialNo: *serialNo,
 		wifiSSID: *wifiSSID, maxAge: *maxAge, pairWindow: *pairWindow,
 		mdns: !*noMDNS, mdnsIface: *mdnsIface,
 	}); err != nil && !errors.Is(err, context.Canceled) {
@@ -102,6 +105,7 @@ type config struct {
 	baud, dataBits                    int
 	mqtt                              source.MQTT
 	v1Listen, v2Listen                string
+	ctListen, ctMAC                   string
 	stateDir, serialNo, wifiSSID      string
 	maxAge, pairWindow                time.Duration
 	mdns                              bool
@@ -115,6 +119,9 @@ type runner interface {
 func run(log *slog.Logger, c config) error {
 	if c.serialNo != "" && !validSerial(c.serialNo) {
 		return fmt.Errorf("serial number %q: want 12 hex digits", c.serialNo)
+	}
+	if c.ctMAC != "" && !validSerial(c.ctMAC) {
+		return fmt.Errorf("CT003 MAC %q: want 12 hex digits", c.ctMAC)
 	}
 	var in runner
 	switch c.input {
@@ -195,8 +202,21 @@ func run(log *slog.Logger, c config) error {
 			}()
 		}
 	}
-	if len(servers) == 0 {
-		return errors.New("both -v1-listen and -v2-listen are empty")
+	if c.ctListen != "" {
+		mac := c.ctMAC
+		if mac == "" {
+			mac = serial
+		}
+		conn, err := net.ListenPacket("udp4", c.ctListen)
+		if err != nil {
+			return fmt.Errorf("ct003 listen: %w", err)
+		}
+		ct := ct003.New(mac, latest.Get, log)
+		go func() { errc <- ct.Serve(ctx, conn) }()
+		log.Info("CT003 listening", "addr", conn.LocalAddr(), "ct_mac", mac)
+	}
+	if len(servers) == 0 && c.ctListen == "" {
+		return errors.New("-v1-listen, -v2-listen and -ct003-listen are all empty")
 	}
 
 	if c.mdns {
